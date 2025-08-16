@@ -1,0 +1,236 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Business Intelligence Query Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'inter': ['Inter', 'sans-serif'],
+                    },
+                    animation: {
+                        'spin-slow': 'spin 1s linear infinite',
+                        'fade-in': 'fadeIn 0.3s ease-in-out',
+                        'slide-up': 'slideUp 0.3s ease-out',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        slideUp: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        };
+    </script>
+</head>
+<body class="font-inter bg-gray-50 min-h-screen">
+    <!-- @COMPONENT: AIQueryInterface [Main application container] -->
+    <div class="min-h-screen flex items-center justify-center p-4">
+        <div class="w-full max-w-2xl mx-auto">
+            <!-- @COMPONENT: Header [Title section] -->
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-semibold text-gray-900 mb-2">
+                    What question can I answer for you today?
+                </h1>
+                <p class="text-gray-600">
+                    Ask any business intelligence question in plain English
+                </p>
+            </div>
+            <!-- @END_COMPONENT: Header -->
+
+            <!-- @COMPONENT: QueryForm [Main form container] -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <form id="queryForm" class="space-y-4">
+                    <!-- @COMPONENT: TextArea [User input field] -->
+                    <div>
+                        <label for="questionInput" class="sr-only">Your question</label>
+                        <textarea 
+                            id="questionInput"
+                            data-bind="question"
+                            placeholder="Example: What were our top selling products last quarter?"
+                            class="w-full h-32 px-4 py-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 placeholder-gray-500"
+                            data-mock="true"
+                        ></textarea>
+                    </div>
+                    <!-- @END_COMPONENT: TextArea -->
+
+                    <!-- @COMPONENT: SubmitButton [Submit action] -->
+                    <div class="flex justify-end">
+                        <button 
+                            type="submit"
+                            id="submitBtn"
+                            data-event="click:handleSubmit"
+                            data-implementation="Should validate input and trigger AI query processing"
+                            class="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <span id="submitText">Submit Question</span>
+                            <!-- Loading spinner (hidden by default) -->
+                            <svg id="loadingSpinner" class="animate-spin-slow h-4 w-4 text-white hidden" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <!-- @END_COMPONENT: SubmitButton -->
+                </form>
+            </div>
+            <!-- @END_COMPONENT: QueryForm -->
+
+            <!-- @COMPONENT: ResponseSection [AI response display] -->
+            <div id="responseSection" class="hidden mt-6 animate-slide-up">
+                <!-- @COMPONENT: ResponseCard [AI response container] -->
+                <div class="bg-blue-50 border border-blue-200 rounded-xl p-6">
+                    <div class="flex items-start gap-3">
+                        <div class="flex-shrink-0">
+                            <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="font-medium text-blue-900 mb-2">AI Response</h3>
+                            <div id="responseContent" class="text-gray-700 leading-relaxed" data-bind="aiResponse">
+                                <!-- AI response content will be inserted here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- @END_COMPONENT: ResponseCard -->
+
+                <!-- @COMPONENT: ResetButton [Clear and restart action] -->
+                <div class="mt-4 text-center">
+                    <button 
+                        id="newQuestionBtn"
+                        data-event="click:handleReset"
+                        data-implementation="Should clear form and hide response section"
+                        class="bg-gray-100 text-gray-700 px-6 py-2.5 rounded-lg hover:bg-gray-200 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all duration-200 font-medium"
+                    >
+                        Ask a new question
+                    </button>
+                </div>
+                <!-- @END_COMPONENT: ResetButton -->
+            </div>
+            <!-- @END_COMPONENT: ResponseSection -->
+        </div>
+    </div>
+    <!-- @END_COMPONENT: AIQueryInterface -->
+
+    <script>
+        // TODO: Implement actual API integration for AI query processing
+        // TODO: Add proper form validation and error handling
+        // TODO: Implement state management for complex query history
+
+        (function() {
+            // @STATE: isLoading:boolean = false
+            // @STATE: hasResponse:boolean = false
+            // @STATE: currentQuestion:string = ""
+            
+            const form = document.getElementById('queryForm');
+            const questionInput = document.getElementById('questionInput');
+            const submitBtn = document.getElementById('submitBtn');
+            const submitText = document.getElementById('submitText');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            const responseSection = document.getElementById('responseSection');
+            const responseContent = document.getElementById('responseContent');
+            const newQuestionBtn = document.getElementById('newQuestionBtn');
+
+            // Mock AI responses for demonstration
+            const mockResponses = [
+                "Based on the sales data analysis, the top selling products last quarter were:<br><br>1. <strong>Premium Widget Pro</strong> - 1,247 units sold ($62,350 revenue)<br>2. <strong>Standard Widget</strong> - 982 units sold ($29,460 revenue)<br>3. <strong>Widget Accessories Kit</strong> - 756 units sold ($15,120 revenue)<br><br>The Premium Widget Pro showed a 23% increase compared to the previous quarter, indicating strong market demand for premium features.",
+                
+                "The customer satisfaction metrics show:<br><br>• <strong>Overall satisfaction score:</strong> 4.2/5.0<br>• <strong>Net Promoter Score:</strong> 68<br>• <strong>Customer retention rate:</strong> 87%<br><br>Key insights: Customer satisfaction improved by 12% this quarter, primarily driven by faster response times and enhanced product quality. The main areas for improvement are shipping speed and product documentation.",
+                
+                "Revenue analysis reveals:<br><br>• <strong>Total revenue:</strong> $2.4M (↑18% YoY)<br>• <strong>Monthly recurring revenue:</strong> $450K<br>• <strong>Average deal size:</strong> $3,200<br><br>Growth drivers include expansion in the enterprise segment and successful launch of the premium tier. The subscription model continues to show strong momentum with 95% renewal rates."
+            ];
+
+            function setLoadingState(isLoading) {
+                if (isLoading) {
+                    submitBtn.disabled = true;
+                    submitText.textContent = 'Processing...';
+                    loadingSpinner.classList.remove('hidden');
+                } else {
+                    submitBtn.disabled = false;
+                    submitText.textContent = 'Submit Question';
+                    loadingSpinner.classList.add('hidden');
+                }
+            }
+
+            function showResponse(responseText) {
+                responseContent.innerHTML = responseText;
+                responseSection.classList.remove('hidden');
+                responseSection.classList.add('animate-fade-in');
+                
+                // Scroll to response
+                setTimeout(() => {
+                    responseSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 100);
+            }
+
+            function resetForm() {
+                questionInput.value = '';
+                responseSection.classList.add('hidden');
+                responseSection.classList.remove('animate-fade-in');
+                questionInput.focus();
+            }
+
+            function validateInput(question) {
+                if (!question.trim()) {
+                    alert('Please enter a question before submitting.');
+                    return false;
+                }
+                if (question.trim().length < 10) {
+                    alert('Please enter a more detailed question (at least 10 characters).');
+                    return false;
+                }
+                return true;
+            }
+
+            // @FUNCTIONALITY: Handle form submission with mock AI processing
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const question = questionInput.value.trim();
+                
+                if (!validateInput(question)) {
+                    return;
+                }
+
+                setLoadingState(true);
+
+                // Simulate AI processing delay (1.5-3 seconds)
+                const delay = Math.random() * 1500 + 1500;
+                const randomResponse = mockResponses[Math.floor(Math.random() * mockResponses.length)];
+
+                setTimeout(() => {
+                    setLoadingState(false);
+                    showResponse(randomResponse);
+                }, delay);
+            });
+
+            // @FUNCTIONALITY: Handle reset/new question action
+            newQuestionBtn.addEventListener('click', function() {
+                resetForm();
+            });
+
+            // Set initial focus
+            questionInput.focus();
+
+            // Auto-resize textarea
+            questionInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+            });
+        })();
+    </script>
+</body>
+</html>
