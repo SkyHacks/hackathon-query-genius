@@ -205,7 +205,7 @@ export async function executeSupabaseQuery(query: GeneratedQuery): Promise<Supab
  */
 export async function analyzeDataWithAI(userQuestion: string, data: any[]): Promise<string> {
   try {
-    const prompt = `You are an AI assistant that answers specific questions using the provided data.
+    const prompt = `You are an AI assistant that answers questions using the provided data.
 
 User's question: "${userQuestion}"
 
@@ -213,30 +213,30 @@ Available data:
 ${JSON.stringify(data, null, 2)}
 
 INSTRUCTIONS:
-- Answer ONLY the user's specific question using the data provided
-- Calculate relevant statistics from the data (totals, averages, counts, etc.)
-- Use the data to provide concrete, quantitative answers
-- Format your response in clear markdown with tables, lists, and bold text
-- Focus on what the user asked, not general insights
+- Answer the user's question directly and clearly
+- Use the data to provide specific numbers and facts
+- Keep it simple and concise
+- Use basic formatting (bold for key numbers, simple lists if needed)
+- Focus on answering what was asked, nothing more
 
-Example: If asked "What's the total revenue?", calculate the sum of all amounts and say "The total revenue is $X based on Y transactions."
+Example: If asked "What's the total revenue?", just say "The total revenue is $X based on Y transactions."
 
-Answer the user's question:`;
+Answer the question:`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4",
       messages: [
         {
           role: "system",
-          content: "You are a data analyst that creates beautiful, insightful reports in markdown format."
+          content: "You are a helpful assistant that answers questions clearly and concisely. Use the data provided to give direct answers with relevant numbers and facts."
         },
         {
           role: "user",
           content: prompt
         }
       ],
-      temperature: 0.3,
-      max_tokens: 1500
+      temperature: 0.2,
+      max_tokens: 2000
     });
 
     const response = completion.choices[0]?.message?.content;
