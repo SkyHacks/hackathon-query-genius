@@ -68,17 +68,37 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-semibold text-gray-900 mb-2">
-            What question can I answer for you today?
-          </h1>
-          <p className="text-gray-600">
-            Ask any business intelligence question in plain English
-          </p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Top Navigation Bar */}
+      <div className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <h1 className="text-2xl font-bold text-blue-600">DataBot</h1>
+              </div>
+            </div>
+            <div className="hidden md:block">
+              <div className="ml-10 flex items-baseline space-x-4">
+                <span className="text-gray-500 text-sm">Intelligent Data Analysis</span>
+              </div>
+            </div>
+          </div>
         </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex items-center justify-center p-4 pt-8">
+        <div className="w-full max-w-2xl mx-auto">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-semibold text-gray-900 mb-2">
+              Looking for Insights? Ask me anything.
+            </h2>
+            <p className="text-gray-600">
+              Ask any business intelligence question in plain English
+            </p>
+          </div>
 
         {/* Query Form */}
         <Card className="shadow-sm border-gray-200">
@@ -153,6 +173,7 @@ export default function Home() {
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );
