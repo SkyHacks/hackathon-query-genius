@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertQuerySchema } from "@shared/schema";
 import { z } from "zod";
+import { processSupabaseQuery } from "./supabase";
 
 /**
  * Helper function to retrieve content from a Google Sheets public URL
@@ -484,6 +485,45 @@ Please format this into a beautiful markdown report similar to the examples abov
       const queries = await storage.getAllQueries();
       res.json(queries);
     } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Supabase query endpoint
+  app.post("/api/supabase-query", async (req, res) => {
+    try {
+      const { question } = insertQuerySchema.parse(req.body);
+      
+      if (!question.trim()) {
+        return res.status(400).json({ message: "Question cannot be empty" });
+      }
+
+      if (question.trim().length < 10) {
+        return res.status(400).json({ message: "Please enter a more detailed question (at least 10 characters)" });
+      }
+
+      // Process the Supabase query
+      const result = await processSupabaseQuery(question);
+      
+      if (!result.success) {
+        return res.status(500).json({ 
+          message: "Error processing Supabase query",
+          error: result.error 
+        });
+      }
+
+      // Store the query and response
+      const query = await storage.createQuery({ question }, result.analysis || 'No analysis available');
+      
+      res.json({
+        ...query,
+        rawData: result.rawData
+      });
+    } catch (error) {
+      console.error('Error processing Supabase query:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid request data", errors: error.errors });
+      }
       res.status(500).json({ message: "Internal server error" });
     }
   });
