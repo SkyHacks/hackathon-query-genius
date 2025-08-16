@@ -86,33 +86,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Please enter a more detailed question (at least 10 characters)" });
       }
 
-      // First, check if this is a Netflix stock query
-      const netflixCheckResponse = await fetch(MAKE_WEBHOOK_URL, {
+      // First, determine the data source based on the question
+      const dataSourceResponse = await fetch(MAKE_WEBHOOK_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          prompt: `You are an AI assistant that determines if a user question is about Netflix stock price.
+          prompt: `You are an AI assistant that determines the appropriate data source for a user question.
 
-Analyze the following question and determine if it's asking about Netflix stock price, Netflix stock data, Netflix share price, or any Netflix stock market information.
+Analyze the following question and determine which data source it should use:
 
-Examples of Netflix stock queries:
-- "What is Netflix stock price?"
-- "How is Netflix performing in the stock market?"
-- "Show me Netflix stock data"
-- "What's the current Netflix share price?"
-- "Netflix stock performance"
-- "Netflix stock price today"
+DATA SOURCES:
+1. "netflix" - For Netflix stock price, Netflix stock data, Netflix share price, or any Netflix stock market information
+2. "supabase" - For grocery store data, transactions, customers, products, stores, or any retail/grocery related questions
+3. "ecommerce" - For e-commerce data, online sales, product catalogs, customer orders, or general business data
+4. "none" - For questions that don't relate to any available data sources
 
-Examples of non-Netflix stock queries:
-- "What are our top selling products?"
-- "Who are our best customers?"
-- "Show me customer data"
-- "What's the revenue breakdown?"
+Examples:
+- Netflix queries: "What is Netflix stock price?", "Netflix stock performance", "Netflix share price today"
+- Supabase queries: "Show me grocery transactions", "What are our top selling products?", "Customer spending analysis", "Store performance", "grocery data"
+- E-commerce queries: "What are our top selling products?", "Who are our best customers?", "Revenue analysis"
+- No data: "What's the weather like?", "Tell me a joke", "How to cook pasta"
 
 Respond ONLY with a JSON object in this exact format:
-{"isNetflixQuery": boolean}
+{"dataSource": "netflix" | "supabase" | "ecommerce" | "none"}
 
 Here is the user's question: ${question}`,
           timestamp: new Date().toISOString(),
@@ -120,25 +118,31 @@ Here is the user's question: ${question}`,
         })
       });
 
-      if (!netflixCheckResponse.ok) {
-        console.error('Netflix check error:', netflixCheckResponse.status, netflixCheckResponse.statusText);
+      if (!dataSourceResponse.ok) {
+        console.error('Data source check error:', dataSourceResponse.status, dataSourceResponse.statusText);
         return res.status(500).json({ 
-          message: "Error checking query type",
-          error: `Netflix check returned ${netflixCheckResponse.status}`
+          message: "Error checking data source",
+          error: `Data source check returned ${dataSourceResponse.status}`
         });
       }
 
-      let isNetflixQuery = false;
+      let dataSource = 'ecommerce'; // default
       try {
-        const netflixCheckData = await netflixCheckResponse.json();
-        isNetflixQuery = netflixCheckData.isNetflixQuery === true;
+        const dataSourceData = await dataSourceResponse.json();
+        dataSource = dataSourceData.dataSource || 'ecommerce';
       } catch (error) {
-        console.error('Error parsing Netflix check response:', error);
-        // Continue with regular flow if parsing fails
+        console.error('Error parsing data source check response:', error);
+        // Continue with default ecommerce flow if parsing fails
       }
 
-      // If it's a Netflix query, use Google Sheets data
-      if (isNetflixQuery) {
+      // Handle "none" data source - no relevant data exists
+      if (dataSource === 'none') {
+        const query = await storage.createQuery({ question }, "I'm sorry, but I don't have any relevant data to answer this question. Please ask about business data, Netflix stock information, or grocery store transactions.");
+        return res.json(query);
+      }
+
+      // Route to Netflix data (Google Sheets)
+      if (dataSource === 'netflix') {
         const netflixData = await getGoogleSheetContent('1R3WZmdV9jHVuHaAWSgMgo2oCSeyGcHIIkioqDqWWf-g');
         
         if (!netflixData.success) {
@@ -186,7 +190,33 @@ Please format this into a beautiful markdown report similar to the examples abov
         }
       }
 
-      // Regular e-commerce database query flow
+      // Route to Supabase for grocery data
+      if (dataSource === 'supabase') {
+        try {
+          const result = await processSupabaseQuery(question);
+          
+          if (!result.success) {
+            return res.status(500).json({ 
+              message: "Error processing Supabase query",
+              error: result.error 
+            });
+          }
+
+          // Store the query and response
+          const query = await storage.createQuery({ question }, result.analysis || 'No analysis available');
+          
+          res.json({
+            ...query,
+            rawData: result.rawData
+          });
+          return;
+        } catch (error) {
+          console.error('Error processing Supabase query:', error);
+          return res.status(500).json({ message: "Error processing Supabase query" });
+        }
+      }
+
+      // Regular e-commerce database query flow (default)
       const makeResponse = await fetch(MAKE_WEBHOOK_URL, {
         method: 'POST',
         headers: {
