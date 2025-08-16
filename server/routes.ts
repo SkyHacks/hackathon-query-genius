@@ -4,6 +4,71 @@ import { storage } from "./storage";
 import { insertQuerySchema } from "@shared/schema";
 import { z } from "zod";
 
+/**
+ * Helper function to retrieve content from a Google Sheets public URL
+ * @param sheetId - The Google Sheets ID (extracted from the URL)
+ * @returns Promise<{ success: boolean; data?: any[][]; error?: string }>
+ */
+async function getGoogleSheetContent(sheetId: string): Promise<{ success: boolean; data?: any[][]; error?: string }> {
+  try {
+    // Validate sheet ID format
+    if (!sheetId || !/^[a-zA-Z0-9-_]+$/.test(sheetId)) {
+      return { success: false, error: "Invalid Google Sheets ID format" };
+    }
+    
+    // Convert to CSV format for easier parsing
+    const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`;
+    
+    const response = await fetch(csvUrl);
+    
+    if (!response.ok) {
+      return { 
+        success: false, 
+        error: `Failed to fetch sheet: ${response.status} ${response.statusText}` 
+      };
+    }
+    
+    const csvText = await response.text();
+    
+    // Parse CSV content
+    const rows = csvText
+      .split('\n')
+      .filter(row => row.trim() !== '')
+      .map(row => {
+        // Simple CSV parsing - handles basic cases
+        const cells = [];
+        let currentCell = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < row.length; i++) {
+          const char = row[i];
+          
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            cells.push(currentCell.trim());
+            currentCell = '';
+          } else {
+            currentCell += char;
+          }
+        }
+        
+        // Add the last cell
+        cells.push(currentCell.trim());
+        return cells;
+      });
+    
+    return { success: true, data: rows };
+    
+  } catch (error) {
+    console.error('Error fetching Google Sheet:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error occurred' 
+    };
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   const MAKE_WEBHOOK_URL = 'https://hook.us1.make.celonis.com/kpvro5no8bro2r7u6supwusbqg5y71hl';
 
@@ -20,7 +85,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Please enter a more detailed question (at least 10 characters)" });
       }
 
-      // Call Make webhook with the question
+      // First, check if this is a Netflix stock query
+      const netflixCheckResponse = await fetch(MAKE_WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: `You are an AI assistant that determines if a user question is about Netflix stock price.
+
+Analyze the following question and determine if it's asking about Netflix stock price, Netflix stock data, Netflix share price, or any Netflix stock market information.
+
+Examples of Netflix stock queries:
+- "What is Netflix stock price?"
+- "How is Netflix performing in the stock market?"
+- "Show me Netflix stock data"
+- "What's the current Netflix share price?"
+- "Netflix stock performance"
+- "Netflix stock price today"
+
+Examples of non-Netflix stock queries:
+- "What are our top selling products?"
+- "Who are our best customers?"
+- "Show me customer data"
+- "What's the revenue breakdown?"
+
+Respond ONLY with a JSON object in this exact format:
+{"isNetflixQuery": boolean}
+
+Here is the user's question: ${question}`,
+          timestamp: new Date().toISOString(),
+          source: 'querygenius'
+        })
+      });
+
+      if (!netflixCheckResponse.ok) {
+        console.error('Netflix check error:', netflixCheckResponse.status, netflixCheckResponse.statusText);
+        return res.status(500).json({ 
+          message: "Error checking query type",
+          error: `Netflix check returned ${netflixCheckResponse.status}`
+        });
+      }
+
+      let isNetflixQuery = false;
+      try {
+        const netflixCheckData = await netflixCheckResponse.json();
+        isNetflixQuery = netflixCheckData.isNetflixQuery === true;
+      } catch (error) {
+        console.error('Error parsing Netflix check response:', error);
+        // Continue with regular flow if parsing fails
+      }
+
+      // If it's a Netflix query, use Google Sheets data
+      if (isNetflixQuery) {
+        const netflixData = await getGoogleSheetContent('1R3WZmdV9jHVuHaAWSgMgo2oCSeyGcHIIkioqDqWWf-g');
+        
+        if (!netflixData.success) {
+          return res.status(500).json({ 
+            message: "Error fetching Netflix stock data",
+            error: netflixData.error 
+          });
+        }
+
+        // Format the Netflix data response
+        const formatResponse = await fetch(MAKE_WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: `You are an AI assistant that converts Netflix stock data into beautiful markdown reports.
+
+Example responses:
+${JSON.stringify([
+  {"response":"Based on the sales data analysis, the top selling products last quarter were:\n\n1. **Premium Widget Pro** - 1,247 units sold ($62,350 revenue)\n2. **Standard Widget** - 982 units sold ($29,460 revenue)\n3. **Widget Accessories Kit** - 756 units sold ($15,120 revenue)\n\nThe Premium Widget Pro showed a 23% increase compared to the previous quarter, indicating strong market demand for premium features."},
+  {"response":"The customer satisfaction metrics show:\n\n• **Overall satisfaction score:** 4.2/5.0\n• **Net Promoter Score:** 68\n• **Customer retention rate:** 87%\n\nKey insights: Customer satisfaction improved by 12% this quarter, primarily driven by faster response times and enhanced product quality. The main areas for improvement are shipping speed and product documentation."},
+  {"response":"Revenue analysis reveals:\n\n• **Total revenue:** $2.4M (↑18% YoY)\n• **Monthly recurring revenue:** $450K\n• **Average deal size:** $3,200\n\nGrowth drivers include expansion in the enterprise segment and successful launch of the premium tier. The subscription model continues to show strong momentum with 95% renewal rates."},
+  {"response":"The conversion funnel analysis shows:\n\n• **Website visitors:** 45,200\n• **Lead generation:** 3,840 (8.5% conversion)\n• **Qualified leads:** 1,920 (50% of leads)\n• **Closed deals:** 384 (20% close rate)\n\nRecommendations: Focus on improving lead qualification process and consider A/B testing the pricing page to increase conversion rates."},
+  {"response":"Employee productivity metrics indicate:\n\n• **Average tasks completed per day:** 12.3\n• **Project completion rate:** 94%\n• **Team collaboration score:** 4.1/5.0\n• **Time to resolution:** 2.4 hours average\n\nProductivity has increased 15% since implementing the new project management system. Remote workers show 8% higher efficiency than in-office workers."}
+])}
+
+Original question: ${question}
+Stock data: ${JSON.stringify(netflixData.data)}
+
+Please format this into a beautiful markdown report similar to the examples above. The response should be a JSON objet with a key of 'response' and a value of the markdown report.`,
+            timestamp: new Date().toISOString(),
+            source: 'querygenius'
+          })
+        });
+
+        if (formatResponse.ok) {
+          const formatData = await formatResponse.json();
+          const finalResponse = formatData.response || formatData.message || JSON.stringify(formatData);
+          const query = await storage.createQuery({ question }, finalResponse);
+          return res.json(query);
+        } else {
+          // Fallback response if formatting fails
+          const fallbackResponse = `Netflix Stock Data Analysis\n\nBased on the available data:\n\n${netflixData.data?.map(row => row.join(' | ')).join('\n')}`;
+          const query = await storage.createQuery({ question }, fallbackResponse);
+          return res.json(query);
+        }
+      }
+
+      // Regular e-commerce database query flow
       const makeResponse = await fetch(MAKE_WEBHOOK_URL, {
         method: 'POST',
         headers: {
