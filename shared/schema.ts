@@ -12,6 +12,7 @@ export const queries = pgTable("queries", {
 
 export const insertQuerySchema = createInsertSchema(queries).omit({
   id: true,
+  response: true,
   createdAt: true,
 });
 
