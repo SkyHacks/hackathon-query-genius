@@ -39,7 +39,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get random mock response
       const response = mockResponses[Math.floor(Math.random() * mockResponses.length)];
       
-      const query = await storage.createQuery({ question, response });
+      const query = await storage.createQuery({ question }, response);
       
       res.json(query);
     } catch (error) {

@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 
 export interface IStorage {
   getQuery(id: string): Promise<Query | undefined>;
-  createQuery(query: InsertQuery): Promise<Query>;
+  createQuery(query: InsertQuery, response: string): Promise<Query>;
   getAllQueries(): Promise<Query[]>;
 }
 
@@ -18,11 +18,12 @@ export class MemStorage implements IStorage {
     return this.queries.get(id);
   }
 
-  async createQuery(insertQuery: InsertQuery): Promise<Query> {
+  async createQuery(insertQuery: InsertQuery, response: string): Promise<Query> {
     const id = randomUUID();
     const query: Query = { 
       ...insertQuery, 
       id, 
+      response,
       createdAt: new Date()
     };
     this.queries.set(id, query);
